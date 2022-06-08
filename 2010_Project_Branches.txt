@@ -1,0 +1,108 @@
+using Microsoft.TeamFoundation.Client;
+using Microsoft.TeamFoundation.VersionControl.Client;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace TFSConnector
+{
+    public class dataexport
+    {
+        public string projectName { get; set; }
+        public string branchName { get; set; }
+    }
+
+    class Program
+    {
+
+        static void Main(string[] args)
+        {
+            string serverName = @"http://rnotfsat:8080/tfs";
+
+            //1.Construct the server object
+            TfsTeamProjectCollection tfs = new TfsTeamProjectCollection(new Uri(serverName));
+            VersionControlServer vcs = tfs.GetService<VersionControlServer>();
+
+            //2.Query all root branches
+            BranchObject[] bos = vcs.QueryRootBranchObjects(RecursionType.OneLevel);
+
+            List<dataexport> datalist = new List<dataexport>();
+            for (int i = 0; i < bos.Length; i++)
+            {
+                for (int j = 0; j < bos[i].ChildBranches.Length; j++)
+                {
+                    // spliting data
+                    string item = bos[i].ChildBranches[j].Item;
+                    string[] items = item.Replace('$', ' ').Split('/');
+
+                    //assigning date
+                    dataexport dataexport = new dataexport();
+                    dataexport.projectName = items[1];
+                    for (int k = 0; k < items.Length; k++)
+                    {
+                        if (k == 0)
+                            continue;
+                        //string branch += items[k] + "\\";
+
+                        dataexport.branchName =string.Concat( items[k] + "\\"); 
+                    }
+                    // creating list
+                    datalist.Add(dataexport);
+                    Console.WriteLine(dataexport.projectName + "," + dataexport.branchName);
+                }
+            }
+            //3.Display all the root branches
+            //Array.ForEach(bos, (bo) => DisplayAllBranches(bo, vcs));
+            Console.ReadKey();
+        }
+
+        private static void DisplayAllBranches(BranchObject bo, VersionControlServer vcs)
+        {
+            //0.Prepare display indentation
+            for (int tabcounter = 0; tabcounter < recursionlevel; tabcounter++)
+                Console.Write("\t");
+
+            //1.Display the current branch
+            Console.WriteLine(string.Format("{0}", bo.Properties.RootItem.Item));
+
+            //2.Query all child branches (one level deep)
+            BranchObject[] childBos = vcs.QueryBranchObjects(bo.Properties.RootItem, RecursionType.OneLevel);
+
+            //3.Display all children recursively
+            recursionlevel++;
+            foreach (BranchObject child in childBos)
+            {
+                if (child.Properties.RootItem.Item == bo.Properties.RootItem.Item)
+                    continue;
+
+                DisplayAllBranches(child, vcs);
+            }
+            recursionlevel--;
+        }
+
+        [Obsolete]
+        public static void getBranchnames()
+        {
+            NetworkCredential cred = new NetworkCredential("[username]", "[Password]", "[domain]");
+            TfsTeamProjectCollection tpc = new TfsTeamProjectCollection(new Uri("[collection url]"), cred);
+            tpc.EnsureAuthenticated();
+
+            VersionControlServer versionControl = tpc.GetService<VersionControlServer>();
+            ItemSet allItems = versionControl.GetItems(new ItemSpec("$/ScrumStarain", RecursionType.OneLevel, (int)DeletedState.NonDeleted), VersionSpec.Latest, DeletedState.NonDeleted, ItemType.Folder, GetItemsOptions.IncludeBranchInfo);
+            foreach (var item in allItems.Items)
+            {
+                if (item.IsBranch)
+                {
+
+                    var branchHistory = versionControl.GetBranchHistory(new ItemSpec[] { new ItemSpec(item.ServerItem, RecursionType.OneLevel) }, VersionSpec.Latest);
+                    Console.WriteLine(branchHistory);
+                }
+            }
+        }
+
+        private static int recursionlevel = 0;
+    }
+}
